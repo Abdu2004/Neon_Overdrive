@@ -24,6 +24,7 @@ public partial class SceneBuilder : Node3D
 {
     [ExportGroup("Arena")]
     [Export(PropertyHint.Range, "50,2000,10")] public float GroundSizeMeters { get; set; } = 400.0f;
+    [Export(PropertyHint.Range, "0.5,8,0.1")] public float TrackScale { get; set; } = 2.0f;
     [Export(PropertyHint.Range, "0,64,1")] public int LandmarkCount { get; set; } = 16;
     [Export(PropertyHint.Range, "10,200,1")] public float LandmarkRadius { get; set; } = 55.0f;
 
@@ -51,7 +52,6 @@ public partial class SceneBuilder : Node3D
         BuildEnvironment();
         BuildSun();
         BuildGround();
-        BuildLandmarks();
         BuildArenaProps();
         BuildTrack();
         SpawnPlayer();
@@ -279,24 +279,103 @@ public partial class SceneBuilder : Node3D
     }
 
     // =====================================================================
-    // Track (Kenney Racing Kit, closed-loop oval of 4 large corners)
+    // Track (Kenney Racing Kit, stadium loop)
     // =====================================================================
 
-    // Four corner instances form a closed loop (exit of each meets entry of next).
-    // Positions/rotations computed so the road centerlines connect; see the asset
-    // notes. Colliders are BoxShape3D sized to each piece's road footprint.
-    private static readonly (string model, Vector3 position, float yaw, Vector3 colliderCenter, Vector3 colliderSize)[] TrackCorners =
+    // Measurement helper: instantiates one roadStraight and one roadCurved piece and
+    // prints their combined AABB so placement uses real numbers, not guesses.
+    private void MeasureTrackPieces(Node3D track)
     {
-        ("roadCornerLarge", new Vector3(-1.4f, 0.0f, 0.4f),   0.0f,   new Vector3(0.65f, -0.05f, -1.65f), new Vector3(2.0f, 0.1f, 2.0f)),
-        ("roadCornerLarge", new Vector3(-0.4f, 0.0f, -1.4f), -90.0f,  new Vector3(0.65f, -0.05f, -1.65f), new Vector3(2.0f, 0.1f, 2.0f)),
-        ("roadCornerLarge", new Vector3(1.4f, 0.0f, -0.4f),  180.0f,  new Vector3(0.65f, -0.05f, -1.65f), new Vector3(2.0f, 0.1f, 2.0f)),
-        ("roadCornerLarge", new Vector3(0.4f, 0.0f, 1.4f),    90.0f,  new Vector3(0.65f, -0.05f, -1.65f), new Vector3(2.0f, 0.1f, 2.0f)),
-    };
+        foreach (string name in new[] { "roadStraight", "roadCurved" })
+        {
+            Node3D? inst = AssetLibrary.LoadModel(AssetLibrary.TrackModel(name));
+            if (inst == null)
+            {
+                GD.Print($"MeasureTrackPieces: could not load {name}");
+                continue;
+            }
 
+            inst.Position = Vector3.Zero;
+            track.AddChild(inst);
+
+            Aabb box = new();
+            bool first = true;
+            foreach (Node n in inst.FindChildren("*", "MeshInstance3D", true, false))
+            {
+                if (n is not MeshInstance3D mi || mi.Mesh == null)
+                {
+                    continue;
+                }
+
+                Aabb local = mi.GetAabb();
+                // Transform the mesh AABB into the instance's local space.
+                Transform3D t = mi.Transform;
+                Aabb world = local;
+                // Approximate by transforming all 8 corners.
+                Vector3 min = new(float.MaxValue, float.MaxValue, float.MaxValue);
+                Vector3 max = new(float.MinValue, float.MinValue, float.MinValue);
+                for (int xi = 0; xi < 2; xi++)
+                for (int yi = 0; yi < 2; yi++)
+                for (int zi = 0; zi < 2; zi++)
+                {
+                    Vector3 c = new(
+                        xi == 0 ? local.Position.X : local.Position.X + local.Size.X,
+                        yi == 0 ? local.Position.Y : local.Position.Y + local.Size.Y,
+                        zi == 0 ? local.Position.Z : local.Position.Z + local.Size.Z);
+                    Vector3 wc = t * c;
+                    min = min.Min(wc);
+                    max = max.Max(wc);
+                }
+                Aabb ab = new(min, max - min);
+                if (first)
+                {
+                    box = ab;
+                    first = false;
+                }
+                else
+                {
+                    Vector3 bmin = box.Position.Min(ab.Position);
+                    Vector3 bmax = (box.Position + box.Size).Max(ab.Position + ab.Size);
+                    box = new Aabb(bmin, bmax - bmin);
+                }
+            }
+
+            GD.Print($"MeasureTrackPieces: {name} AABB size = {box.Size} (pos {box.Position})");
+            inst.QueueFree();
+        }
+    }
+
+    // Stadium loop, laid out in native (unscaled) units, then scaled by TrackScale.
+    // Top/bottom are 4 straights; each end is 2 quarter-curves (a 180 U-turn).
     private void BuildTrack()
     {
-        // Road surface pieces.
-        foreach (var (model, position, yaw, colliderCenter, colliderSize) in TrackCorners)
+        var track = new Node3D { Name = "Track", Scale = Vector3.One * TrackScale };
+        AddChild(track);
+
+        MeasureTrackPieces(track);
+
+        // Each entry: (model, yawDegrees, nativePosition)
+        var pieces = new (string model, float yaw, Vector3 pos)[]
+        {
+            // Top straight (going +X), 4 tiles.
+            ("roadStraight", -90.0f, new Vector3(-2.4f, 0.0f, -1.4f)),
+            ("roadStraight", -90.0f, new Vector3(-1.4f, 0.0f, -1.4f)),
+            ("roadStraight", -90.0f, new Vector3(-0.4f, 0.0f, -1.4f)),
+            ("roadStraight", -90.0f, new Vector3( 0.6f, 0.0f, -1.4f)),
+            // Right end U-turn: 2 quarter-curves.
+            ("roadCornerLarge", -90.0f, new Vector3( 1.6f, 0.0f, -1.4f)),
+            ("roadCornerLarge", 180.0f, new Vector3( 3.4f, 0.0f, -0.4f)),
+            // Bottom straight (going -X), 4 tiles.
+            ("roadStraight",  90.0f, new Vector3( 2.4f, 0.0f,  1.4f)),
+            ("roadStraight",  90.0f, new Vector3( 1.4f, 0.0f,  1.4f)),
+            ("roadStraight",  90.0f, new Vector3( 0.4f, 0.0f,  1.4f)),
+            ("roadStraight",  90.0f, new Vector3(-0.6f, 0.0f,  1.4f)),
+            // Left end U-turn: 2 quarter-curves.
+            ("roadCornerLarge",  90.0f, new Vector3(-1.6f, 0.0f,  1.4f)),
+            ("roadCornerLarge",   0.0f, new Vector3(-3.4f, 0.0f,  0.4f)),
+        };
+
+        foreach (var (model, yaw, pos) in pieces)
         {
             Node3D? piece = AssetLibrary.LoadModel(AssetLibrary.TrackModel(model));
             if (piece == null)
@@ -307,11 +386,18 @@ public partial class SceneBuilder : Node3D
             var body = new StaticBody3D
             {
                 Name = $"Track_{model}",
-                Position = position,
+                Position = pos,
                 RotationDegrees = new Vector3(0.0f, yaw, 0.0f),
             };
 
-            // Simple box collider under the road mesh (performance).
+            // Collider sized to the piece's road footprint (native units, scales with parent).
+            Vector3 colliderSize = model.StartsWith("roadCorner")
+                ? new Vector3(2.0f, 0.1f, 2.0f)
+                : new Vector3(1.0f, 0.1f, 1.0f);
+            Vector3 colliderCenter = model.StartsWith("roadCorner")
+                ? new Vector3(0.65f, -0.05f, -1.65f)
+                : new Vector3(0.15f, -0.05f, -1.15f);
+
             body.AddChild(new CollisionShape3D
             {
                 Name = "RoadShape",
@@ -319,85 +405,56 @@ public partial class SceneBuilder : Node3D
                 Position = colliderCenter,
             });
 
-            // Keep shadows off the road surface (sun still lights it).
             AssetLibrary.SetShadows(piece, false);
+            piece.Position = new Vector3(0.0f, 0.005f, 0.0f);
             body.AddChild(piece);
-            AddChild(body);
+            track.AddChild(body);
         }
 
-        // Start / finish arch over the vertical leg of corner 0.
+        // Start / finish arch on the top straight (overlaps two tiles).
         Node3D? start = AssetLibrary.LoadModel(AssetLibrary.TrackModel("roadStart"));
         if (start != null)
         {
             var startBody = new StaticBody3D
             {
                 Name = "StartFinish",
-                Position = new Vector3(-1.25f, 0.0f, -1.25f),
-                RotationDegrees = Vector3.Zero,
+                Position = new Vector3(-1.4f, 0.0f, -1.4f),
+                RotationDegrees = new Vector3(0.0f, -90.0f, 0.0f),
             };
-            // Slightly raised to avoid z-fighting with the road surface below.
             start.Position = new Vector3(0.0f, 0.005f, 0.0f);
             AssetLibrary.SetShadows(start, false);
             startBody.AddChild(start);
-            AddChild(startBody);
+            track.AddChild(startBody);
         }
 
-        // Trackside barriers along the outer edges of each corner.
-        BuildTrackBarriers();
+        // Outer-edge barriers along top and bottom straights.
+        for (int i = 0; i < 4; i++)
+        {
+            SpawnBarrier(track, new Vector3(-2.4f + i * 1.0f, 0.0f, -2.4f), 0.0f);
+            SpawnBarrier(track, new Vector3(-1.4f + i * 1.0f, 0.0f,  2.4f), 0.0f);
+        }
 
-        // Power-up pads spaced around the circuit.
+        // Power-up pads flat on the road surface.
         Vector3[] padPositions =
         {
-            new(-0.75f, 0.0f, -1.25f),
-            new(1.25f, 0.0f, -0.75f),
-            new(0.75f, 0.0f, 1.25f),
-            new(-1.25f, 0.0f, 0.75f),
+            new(-0.4f, 0.0f, -1.4f),
+            new( 2.4f, 0.0f, -0.4f),
+            new(-0.6f, 0.0f,  1.4f),
+            new(-2.4f, 0.0f,  0.4f),
         };
 
-        for (int i = 0; i < padPositions.Length; i++)
+        foreach (Vector3 p in padPositions)
         {
-            AddChild(new PowerUpPad
+            track.AddChild(new PowerUpPad
             {
-                Name = $"TrackPad{i}",
+                Name = "TrackPad",
                 UseRandomEffect = true,
-                Position = padPositions[i],
+                Position = p,
             });
         }
     }
 
-    private void BuildTrackBarriers()
-    {
-        // barrierWall: 1.0 long x 0.123 deep x 0.131 tall, origin at one end.
-        // Placed as short segments along each corner's two outer sides.
-        // Outer side segments for corner 0 (rot 0): east wall X=0.25, north wall Z=-2.25.
-        // We replicate the same pattern for all four corners via the corner transforms.
-        Vector3[] cornerOrigins =
-        {
-            new(-1.4f, 0.0f, 0.4f),
-            new(-0.4f, 0.0f, -1.4f),
-            new(1.4f, 0.0f, -0.4f),
-            new(0.4f, 0.0f, 1.4f),
-        };
-        float[] cornerYaws = { 0.0f, -90.0f, 180.0f, 90.0f };
-
-        for (int c = 0; c < cornerOrigins.Length; c++)
-        {
-            float yaw = cornerYaws[c];
-            // Two outer sides of a 2x2 corner: along +X at Z=-2.65, and along -Z at X=1.65 (local).
-            // Segment 1: side running along X (north side), 2 barriers.
-            for (int i = 0; i < 2; i++)
-            {
-                SpawnBarrier(cornerOrigins[c], yaw, new Vector3(0.2f + i * 0.9f, 0.0f, -2.7f), 0.0f);
-            }
-            // Segment 2: side running along Z (east side), 2 barriers.
-            for (int i = 0; i < 2; i++)
-            {
-                SpawnBarrier(cornerOrigins[c], yaw, new Vector3(1.7f, 0.0f, -2.5f + i * 0.9f), 90.0f);
-            }
-        }
-    }
-
-    private void SpawnBarrier(Vector3 cornerOrigin, float cornerYaw, Vector3 localOffset, float barrierYawOffset)
+    private void SpawnBarrier(Node3D track, Vector3 position, float yawDegrees)
     {
         Node3D? barrier = AssetLibrary.LoadModel(AssetLibrary.TrackModel("barrierWall"));
         if (barrier == null)
@@ -405,20 +462,11 @@ public partial class SceneBuilder : Node3D
             return;
         }
 
-        // Rotate the local offset by the corner yaw.
-        float yawRad = Mathf.DegToRad(cornerYaw);
-        float cos = Mathf.Cos(yawRad);
-        float sin = Mathf.Sin(yawRad);
-        Vector3 worldOffset = new(
-            localOffset.X * cos + localOffset.Z * sin,
-            localOffset.Y,
-            -localOffset.X * sin + localOffset.Z * cos);
-
         var body = new StaticBody3D
         {
             Name = "Barrier",
-            Position = cornerOrigin + worldOffset,
-            RotationDegrees = new Vector3(0.0f, cornerYaw + barrierYawOffset, 0.0f),
+            Position = position,
+            RotationDegrees = new Vector3(0.0f, yawDegrees, 0.0f),
         };
 
         body.AddChild(new CollisionShape3D
@@ -430,7 +478,7 @@ public partial class SceneBuilder : Node3D
 
         AssetLibrary.SetShadows(barrier, false);
         body.AddChild(barrier);
-        AddChild(body);
+        track.AddChild(body);
     }
 
     // =====================================================================
@@ -445,9 +493,9 @@ public partial class SceneBuilder : Node3D
             DisplayName = "Overdrive Prototype",
             BodyColor = PlayerColor,
             ModelPath = AssetLibrary.CarModel("race-future"),
-            // Start line of the oval circuit (vertical leg of corner 0).
-            Position = new Vector3(-1.25f, 0.70f, -1.25f),
-            RotationDegrees = new Vector3(0.0f, 0.0f, 0.0f),
+            // Top straight of the stadium loop (world/scaled units).
+            Position = new Vector3(0.0f, 0.70f, -2.8f),
+            RotationDegrees = new Vector3(0.0f, -90.0f, 0.0f),
         };
 
         AddChild(Player);
@@ -482,10 +530,8 @@ public partial class SceneBuilder : Node3D
 
         for (int i = 0; i < RivalCount; i++)
         {
-            float side = i % 2 == 0 ? -1.0f : 1.0f;
-            float distance = 20.0f + (i / 2) * 14.0f;
-
             string[] rivalModels = { "police", "sedan-sports", "race" };
+            float x = -1.0f + i * 2.0f;
             AddChild(new CarController
             {
                 Name = $"Rival{i}",
@@ -493,8 +539,8 @@ public partial class SceneBuilder : Node3D
                 BodyColor = colors[i % colors.Length],
                 ModelPath = AssetLibrary.CarModel(rivalModels[i % rivalModels.Length]),
                 UsePlayerInput = false, // no driver yet: static target
-                Position = new Vector3(side * (10.0f + i * 2.0f), 0.70f, -distance),
-                RotationDegrees = new Vector3(0.0f, side * 12.0f, 0.0f),
+                Position = new Vector3(x, 0.70f, 2.8f),
+                RotationDegrees = new Vector3(0.0f, 90.0f, 0.0f),
             });
         }
     }

@@ -48,8 +48,8 @@ public partial class PowerUpPad : Area3D
     [Export(PropertyHint.Range, "1,5,1")] public int MissilesGranted { get; set; } = 1;
 
     [ExportGroup("Shape")]
-    [Export(PropertyHint.Range, "0.5,5,0.1")] public float PadRadius { get; set; } = 1.8f;
-    [Export(PropertyHint.Range, "0.2,5,0.1")] public float PadHeight { get; set; } = 1.5f;
+    [Export(PropertyHint.Range, "0.3,3,0.1")] public float PadRadius { get; set; } = 0.5f;
+    [Export(PropertyHint.Range, "0.1,1,0.1")] public float PadHeight { get; set; } = 0.2f;
 
     /// <summary>True while a vehicle can collect from this pad.</summary>
     public bool IsAvailable => _cooldown <= 0.0f;
@@ -60,9 +60,7 @@ public partial class PowerUpPad : Area3D
 
     private float _cooldown;
     private Node3D _visual = null!;
-    private MeshInstance3D _core = null!;
     private StandardMaterial3D _padMaterial = null!;
-    private StandardMaterial3D _coreMaterial = null!;
     private PowerUpKind _armedKind = PowerUpKind.NitroSurge;
 
     public override void _Ready()
@@ -123,24 +121,7 @@ public partial class PowerUpPad : Area3D
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         });
 
-        _coreMaterial = new StandardMaterial3D
-        {
-            AlbedoColor = new Color(0.9f, 0.9f, 1.0f),
-            EmissionEnabled = true,
-            Emission = new Color(1.0f, 1.0f, 1.0f),
-            EmissionEnergyMultiplier = 3.0f,
-            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-        };
-
-        // Spins in _Process, which only runs while the pad is armed.
-        _core = new MeshInstance3D
-        {
-            Name = "PadCore",
-            Mesh = new BoxMesh { Size = new Vector3(0.55f, 0.55f, 0.55f), Material = _coreMaterial },
-            Position = new Vector3(0.0f, 1.05f, 0.0f),
-            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-        };
-        _visual.AddChild(_core);
+        // Flat glowing disc only - no floating core cube.
     }
 
     public override void _Process(double delta)
@@ -157,8 +138,7 @@ public partial class PowerUpPad : Area3D
             return;
         }
 
-        // Cheap idle animation. Rotating one node per armed pad is negligible.
-        _core.RotateY(dt * 1.6f);
+        // Flat disc: gentle pulse via scale is skipped to keep it cheap.
     }
 
     // ---------------------------------------------------------------------
@@ -225,7 +205,6 @@ public partial class PowerUpPad : Area3D
         Color color = KindColor(_armedKind);
         _padMaterial.Emission = color;
         _padMaterial.EmissionEnergyMultiplier = 2.5f;
-        _coreMaterial.Emission = color;
     }
 
     private static Color KindColor(PowerUpKind kind) => kind switch

@@ -228,7 +228,7 @@ public abstract partial class BaseVehicle : CharacterBody3D
         var collision = new CollisionShape3D
         {
             Name = "BodyCollision",
-            Shape = new BoxShape3D { Size = new Vector3(1.10f, 0.50f, 2.10f) },
+            Shape = new BoxShape3D { Size = new Vector3(1.20f, 0.50f, 2.40f) },
             Position = new Vector3(0.0f, 0.25f, 0.0f),
         };
         AddChild(collision);
@@ -350,7 +350,7 @@ public abstract partial class BaseVehicle : CharacterBody3D
         var chassis = new MeshInstance3D
         {
             Name = "ChassisMesh",
-            Mesh = new BoxMesh { Size = new Vector3(1.05f, 0.42f, 2.05f), Material = paint },
+            Mesh = new BoxMesh { Size = new Vector3(1.20f, 0.42f, 2.40f), Material = paint },
             Position = new Vector3(0.0f, 0.28f, 0.0f),
         };
         AddChild(chassis);
@@ -372,10 +372,10 @@ public abstract partial class BaseVehicle : CharacterBody3D
 
         Vector3[] offsets =
         {
-            new(-0.52f, 0.06f, 0.68f),
-            new(0.52f, 0.06f, 0.68f),
-            new(-0.52f, 0.06f, -0.68f),
-            new(0.52f, 0.06f, -0.68f),
+            new(-0.55f, 0.06f, 0.80f),
+            new(0.55f, 0.06f, 0.80f),
+            new(-0.55f, 0.06f, -0.80f),
+            new(0.55f, 0.06f, -0.80f),
         };
 
         for (int i = 0; i < offsets.Length; i++)
