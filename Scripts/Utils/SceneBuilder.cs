@@ -24,7 +24,7 @@ public partial class SceneBuilder : Node3D
 {
     [ExportGroup("Arena")]
     [Export(PropertyHint.Range, "50,2000,10")] public float GroundSizeMeters { get; set; } = 400.0f;
-    [Export(PropertyHint.Range, "0.5,8,0.1")] public float TrackScale { get; set; } = 2.0f;
+    [Export(PropertyHint.Range, "0.5,20,0.5")] public float TrackScale { get; set; } = 10.0f;
     [Export(PropertyHint.Range, "0,64,1")] public int LandmarkCount { get; set; } = 16;
     [Export(PropertyHint.Range, "10,200,1")] public float LandmarkRadius { get; set; } = 55.0f;
 
@@ -54,6 +54,7 @@ public partial class SceneBuilder : Node3D
         BuildGround();
         BuildArenaProps();
         BuildTrack();
+        BuildPowerUpPads();
         SpawnPlayer();
         SpawnRivals();
         BuildCamera();
@@ -395,8 +396,8 @@ public partial class SceneBuilder : Node3D
                 ? new Vector3(2.0f, 0.1f, 2.0f)
                 : new Vector3(1.0f, 0.1f, 1.0f);
             Vector3 colliderCenter = model.StartsWith("roadCorner")
-                ? new Vector3(0.65f, -0.05f, -1.65f)
-                : new Vector3(0.15f, -0.05f, -1.15f);
+                ? new Vector3(0.65f, 0.0f, -1.65f)
+                : new Vector3(0.15f, 0.0f, -1.15f);
 
             body.AddChild(new CollisionShape3D
             {
@@ -434,22 +435,27 @@ public partial class SceneBuilder : Node3D
             SpawnBarrier(track, new Vector3(-1.4f + i * 1.0f, 0.0f,  2.4f), 0.0f);
         }
 
-        // Power-up pads flat on the road surface.
+    }
+
+    private void BuildPowerUpPads()
+    {
+        // World-space (not scaled by Track): ~1m wide pads.
         Vector3[] padPositions =
         {
-            new(-0.4f, 0.0f, -1.4f),
-            new( 2.4f, 0.0f, -0.4f),
-            new(-0.6f, 0.0f,  1.4f),
-            new(-2.4f, 0.0f,  0.4f),
+            new( 0.0f, 0.05f, -14.0f + 4.5f),
+            new( 24.0f, 0.05f, -4.0f),
+            new( 0.0f, 0.05f,  14.0f - 4.5f),
+            new(-24.0f, 0.05f,  4.0f),
         };
 
-        foreach (Vector3 p in padPositions)
+        for (int i = 0; i < padPositions.Length; i++)
         {
-            track.AddChild(new PowerUpPad
+            AddChild(new PowerUpPad
             {
-                Name = "TrackPad",
+                Name = $"TrackPad{i}",
                 UseRandomEffect = true,
-                Position = p,
+                Position = padPositions[i],
+                PadRadius = 0.5f,
             });
         }
     }
@@ -494,7 +500,7 @@ public partial class SceneBuilder : Node3D
             BodyColor = PlayerColor,
             ModelPath = AssetLibrary.CarModel("race-future"),
             // Top straight of the stadium loop (world/scaled units).
-            Position = new Vector3(0.0f, 0.70f, -2.8f),
+            Position = new Vector3(0.0f, 0.05f, -14.0f),
             RotationDegrees = new Vector3(0.0f, -90.0f, 0.0f),
         };
 
@@ -531,7 +537,8 @@ public partial class SceneBuilder : Node3D
         for (int i = 0; i < RivalCount; i++)
         {
             string[] rivalModels = { "police", "sedan-sports", "race" };
-            float x = -1.0f + i * 2.0f;
+            float x = (i % 2 == 0 ? -2.2f : 2.2f);
+            float z = (i < 2 ? 10.0f : 18.0f);
             AddChild(new CarController
             {
                 Name = $"Rival{i}",
@@ -539,30 +546,8 @@ public partial class SceneBuilder : Node3D
                 BodyColor = colors[i % colors.Length],
                 ModelPath = AssetLibrary.CarModel(rivalModels[i % rivalModels.Length]),
                 UsePlayerInput = false, // no driver yet: static target
-                Position = new Vector3(x, 0.70f, 2.8f),
+                Position = new Vector3(x, 0.05f, z),
                 RotationDegrees = new Vector3(0.0f, 90.0f, 0.0f),
-            });
-        }
-    }
-
-    // =====================================================================
-    // Power-up pads
-    // =====================================================================
-
-    private void BuildPowerUpPads()
-    {
-        for (int i = 0; i < PowerUpPadCount; i++)
-        {
-            float angle = Mathf.Tau * i / Mathf.Max(PowerUpPadCount, 1);
-
-            AddChild(new PowerUpPad
-            {
-                Name = $"PowerUpPad{i}",
-                UseRandomEffect = true,
-                Position = new Vector3(
-                    Mathf.Cos(angle) * PowerUpPadRadius,
-                    0.0f,
-                    Mathf.Sin(angle) * PowerUpPadRadius),
             });
         }
     }

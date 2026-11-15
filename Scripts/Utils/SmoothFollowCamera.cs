@@ -22,8 +22,8 @@ public partial class SmoothFollowCamera : Camera3D
     public Node3D? Target { get; set; }
 
     [ExportGroup("Rig")]
-    [Export] public Vector3 Offset { get; set; } = new(0.0f, 1.5f, 12.0f);
-    [Export(PropertyHint.Range, "0.5,3,0.05")] public float LookHeight { get; set; } = 0.6f;
+    [Export] public Vector3 Offset { get; set; } = new(0.0f, 4.0f, 18.0f);
+    [Export(PropertyHint.Range, "0.5,3,0.05")] public float LookHeight { get; set; } = 1.5f;
     /// <summary>How far ahead of the car we aim, per second of travel.</summary>
     [Export(PropertyHint.Range, "0,2,0.05")] public float LookAheadSeconds { get; set; } = 0.22f;
 

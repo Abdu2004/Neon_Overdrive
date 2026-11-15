@@ -78,7 +78,7 @@ public abstract partial class BaseVehicle : CharacterBody3D
     [Export(PropertyHint.Range, "-180,180,1")] public float ModelYawDegrees { get; set; } = 180.0f;
 
     /// <summary>Uniform scale applied to the imported model.</summary>
-    [Export(PropertyHint.Range, "0.2,4,0.01")] public float ModelScale { get; set; } = 0.82f;
+    [Export(PropertyHint.Range, "0.2,4,0.01")] public float ModelScale { get; set; } = 1.0f;
 
     /// <summary>How strongly <see cref="BodyColor"/> tints the model's body mesh (0..1).</summary>
     [Export(PropertyHint.Range, "0,1,0.05")] public float ModelTintStrength { get; set; } = 0.35f;
@@ -275,6 +275,35 @@ public abstract partial class BaseVehicle : CharacterBody3D
         model.Scale = Vector3.One * ModelScale;
         AssetLibrary.TintBody(model, BodyColor, ModelTintStrength);
         AddChild(model);
+
+        // Ground the model: shift it so the bottom of its AABB sits at Y = 0
+        // (the body origin / collision bottom), with a 5cm clearance handled by spawn.
+        float minY = float.MaxValue;
+        foreach (Node n in model.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            if (n is not MeshInstance3D mi || mi.Mesh == null)
+            {
+                continue;
+            }
+            Aabb a = mi.GetAabb();
+            Transform3D t = mi.Transform;
+            // transform the 8 corners
+            for (int xi = 0; xi < 2; xi++)
+            for (int yi = 0; yi < 2; yi++)
+            for (int zi = 0; zi < 2; zi++)
+            {
+                Vector3 c = new(
+                    xi == 0 ? a.Position.X : a.Position.X + a.Size.X,
+                    yi == 0 ? a.Position.Y : a.Position.Y + a.Size.Y,
+                    zi == 0 ? a.Position.Z : a.Position.Z + a.Size.Z);
+                Vector3 wc = t * c;
+                minY = Mathf.Min(minY, wc.Y);
+            }
+        }
+        if (minY < float.MaxValue && minY != 0.0f)
+        {
+            model.Position = new Vector3(model.Position.X, -minY, model.Position.Z);
+        }
 
         CollectWheels(model);
         return true;
