@@ -25,10 +25,16 @@ public static class AssetLibrary
     // Kenney Car Kit model folder (the .glb files live in "GLB format/").
     public const string CarModelDir = "res://Assets/Models/Cars/Models/GLB format/";
 
+    // Kenney Racing Kit model folder (the .glb files live in "GLTF format/").
+    public const string TrackModelDir = "res://Assets/Models/Tracks/Models/GLTF format/";
+
     private static readonly Dictionary<string, Node3D> _templates = new();
 
     /// <summary>Build a <c>res://</c> path for a car-kit model by file name (no extension).</summary>
     public static string CarModel(string name) => CarModelDir + name + ".glb";
+
+    /// <summary>Build a <c>res://</c> path for a racing-kit model by file name (no extension).</summary>
+    public static string TrackModel(string name) => TrackModelDir + name + ".glb";
 
     /// <summary>
     /// Load a model and return a fresh instance, or <c>null</c> if it could not be

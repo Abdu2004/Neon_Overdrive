@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ApexCombatRacing")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6aa0d73803520b69714e36e95309f69a5c5ab457")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+59f8fbaffc3af286019aaaef9ead61aaa427aed8")]
 [assembly: System.Reflection.AssemblyProductAttribute("ApexCombatRacing")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ApexCombatRacing")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
